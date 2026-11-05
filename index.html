@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>BikeGPS</title>
+<style>
+:root{--bg:#0b0f14;--card:#151b23;--card2:#1c242e;--line:#27313d;--tx:#e8eef5;--mut:#8b98a8;--acc:#27d3a2;--warn:#ffb020;--bad:#ff4d5e;--blue:#4da3ff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding-bottom:84px;min-height:100vh}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(11,15,20,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0;letter-spacing:.3px}
+.pill{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--card2);color:var(--mut);display:inline-flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bad)}
+.pill.on .dot{background:var(--acc)}.pill.on{color:var(--acc)}
+button{font:inherit;border:0;border-radius:12px;padding:12px 16px;background:var(--acc);color:#04251c;font-weight:700;cursor:pointer}
+button.ghost{background:var(--card2);color:var(--tx);font-weight:600}
+button.danger{background:#3a1a20;color:var(--bad)}
+button:active{transform:scale(.98)}
+main{padding:14px;max-width:560px;margin:0 auto}
+section{display:none}section.active{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.k{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
+.v{font-size:24px;font-weight:700;margin-top:2px}.v small{font-size:13px;color:var(--mut);font-weight:500}
+.banner{display:none;background:linear-gradient(90deg,#4a1620,#2d1015);border:1px solid var(--bad);color:#ffd5da;border-radius:14px;padding:12px 14px;margin-bottom:12px;font-weight:700;animation:blink 1.2s infinite}
+.banner.show{display:block}
+@keyframes blink{50%{opacity:.65}}
+.gauge{text-align:center;position:relative}
+.gauge svg{width:100%;max-width:320px}
+.gauge .spd{position:absolute;left:0;right:0;top:46%;font-size:64px;font-weight:800;line-height:1}
+.gauge .unit{position:absolute;left:0;right:0;top:78%;color:var(--mut);font-size:13px}
+.bar{height:12px;background:var(--card2);border-radius:99px;overflow:hidden;margin-top:8px}
+.bar>i{display:block;height:100%;width:0;background:var(--acc);transition:width .6s,background .3s}
+label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px}
+input[type=number],input[type=text]{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--tx);font:inherit}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.chk{display:flex;align-items:center;gap:10px;margin:12px 0}.chk input{width:20px;height:20px;accent-color:var(--acc)}
+.list .it{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.list .it:last-child{border:0}.mut{color:var(--mut)}.acc{color:var(--acc)}
+h2{font-size:15px;margin:0 0 8px}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:rgba(21,27,35,.97);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;color:var(--mut);border-radius:0;padding:12px 4px;font-size:12px;display:flex;flex-direction:column;gap:2px;align-items:center}
+nav button.active{color:var(--acc)}nav .ic{font-size:20px}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#fff;color:#000;padding:10px 16px;border-radius:99px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:9;max-width:90%}
+.toast.show{opacity:1}
+.note{font-size:12px;color:var(--mut);line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏍️ BikeGPS</h1>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="pill" id="pill"><span class="dot"></span><span id="pillTx">Offline</span></span>
+    <button id="btnConn" class="ghost" style="padding:8px 12px">Connect</button>
+  </div>
+</header>
+
+<main>
+<!-- ===================== DASHBOARD ===================== -->
+<section id="tab-home" class="active">
+  <div class="banner" id="lowBanner">⚠️ LOW FUEL — <span id="lowTx"></span></div>
+
+  <div class="card gauge">
+    <svg viewBox="0 0 200 120">
+      <path d="M20 105 A80 80 0 0 1 180 105" fill="none" stroke="#222c38" stroke-width="14" stroke-linecap="round"/>
+      <path id="arc" d="M20 105 A80 80 0 0 1 180 105" fill="none" stroke="#27d3a2" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 400"/>
+    </svg>
+    <div class="spd" id="spd">0</div><div class="unit">km/h</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="k">Trip</div><div class="v"><span id="trip">0.0</span> <small>km</small></div></div>
+    <div class="card"><div class="k">Odometer</div><div class="v"><span id="odo">0</span> <small>km</small></div></div>
+    <div class="card"><div class="k">Range left</div><div class="v"><span id="range">0</span> <small>km</small></div></div>
+    <div class="card"><div class="k">Fuel cost so far</div><div class="v"><small>₹</small><span id="cost">0</span></div></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between"><div class="k">Petrol in tank (est.)</div><div class="k"><span id="fuelPct">0</span>%</div></div>
+    <div class="v"><span id="fuel">0.00</span> <small>L of <span id="tankL">10</span> L</small></div>
+    <div class="bar"><i id="fuelBar"></i></div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="k">Bike battery</div><div class="v"><span id="batP">--</span><small>%</small></div><div class="mut" style="font-size:13px"><span id="batV">--</span> V <span id="batC"></span></div><div class="bar"><i id="batBar"></i></div></div>
+    <div class="card"><div class="k">Time &amp; GPS</div><div class="v" id="clock">--:--</div><div class="mut" style="font-size:13px"><span id="sats">0</span> satellites · <span id="fx">no fix</span></div></div>
+  </div>
+
+  <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+    <div><div class="k">Weather <span id="wxSrc" class="acc"></span></div><div class="v" id="wx" style="font-size:20px">—</div><div class="mut" id="wx2" style="font-size:13px"></div><div class="mut" id="wx3" style="font-size:13px"></div></div>
+    <div style="font-size:42px" id="wxIc">🌤️</div>
+  </div>
+</section>
+
+<!-- ===================== FUEL ===================== -->
+<section id="tab-fuel">
+  <div class="card">
+    <h2>⛽ Add fill-up</h2>
+    <div class="row">
+      <div><label>Litres added</label><input type="number" id="fLit" step="0.01" inputmode="decimal" placeholder="e.g. 4.5"></div>
+      <div><label>Price ₹/L</label><input type="number" id="fPrice" step="0.01" inputmode="decimal"></div>
+    </div>
+    <div class="chk"><input type="checkbox" id="fFull" checked><span>Filled to the brim (full tank)</span></div>
+    <button id="btnFill" style="width:100%">Save fill-up</button>
+    <p class="note">Tip: always fill to the brim at the same pump nozzle click. The app compares full-to-full fills with your trip km to learn your <b>real</b> mileage.</p>
+  </div>
+
+  <div class="card">
+    <h2>Real mileage (full-to-full)</h2>
+    <div class="v"><span id="realMil">—</span> <small>km/L</small></div>
+    <div class="note" id="realNote">Need two full-tank fill-ups to calculate.</div>
+    <button id="btnUseMil" class="ghost" style="margin-top:10px;display:none">Use this as my mileage</button>
+  </div>
+
+  <div class="card">
+    <h2>Spending</h2>
+    <div class="row">
+      <div><div class="k">Total fill-ups</div><div class="v">₹<span id="sumFill">0</span></div></div>
+      <div><div class="k">Litres bought</div><div class="v"><span id="sumLit">0</span> <small>L</small></div></div>
+    </div>
+  </div>
+
+  <div class="card"><h2>Fill-up history</h2><div class="list" id="fillList"><div class="mut">No fill-ups yet.</div></div></div>
+</section>
+
+<!-- ===================== SETTINGS ===================== -->
+<section id="tab-set">
+  <div class="card">
+    <h2>Bike &amp; fuel settings</h2>
+    <div class="row">
+      <div><label>Mileage km/L</label><input type="number" id="sMil" step="0.1" inputmode="decimal"></div>
+      <div><label>Tank litres</label><input type="number" id="sTank" step="0.1" inputmode="decimal"></div>
+    </div>
+    <div class="row">
+      <div><label>Petrol price ₹/L</label><input type="number" id="sPrice" step="0.01" inputmode="decimal"></div>
+      <div><label>Low-fuel alert (km)</label><input type="number" id="sLow" step="1" inputmode="numeric"></div>
+    </div>
+    <label>Time zone offset (hours, IST = 5.5)</label><input type="number" id="sTz" step="0.5" inputmode="decimal">
+    <button id="btnSave" style="width:100%;margin-top:14px">Save to device</button>
+  </div>
+
+  <div class="card">
+    <h2>Correct fuel level</h2>
+    <label>Petrol currently in tank (L)</label>
+    <div class="row"><input type="number" id="sFuel" step="0.01" inputmode="decimal"><button id="btnFuel" class="ghost" style="flex:0 0 auto">Set</button></div>
+    <p class="note">The bike has no fuel sensor wired to this device, so level is estimated from km driven ÷ mileage. Reset it here whenever you know the real level (e.g. after the bike's own reserve light comes on).</p>
+  </div>
+
+  <div class="card">
+    <h2>Trips &amp; counters</h2>
+    <div class="row"><button id="btnTrip" class="ghost">End trip &amp; reset</button><button id="btnCost" class="danger">Reset cost</button></div>
+    <div class="list" id="tripList" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Try without hardware</h2>
+    <button id="btnDemo" class="ghost" style="width:100%">Start demo mode</button>
+  </div>
+</section>
+</main>
+
+<nav>
+  <button data-t="home" class="active"><span class="ic">📊</span>Dashboard</button>
+  <button data-t="fuel"><span class="ic">⛽</span>Fuel</button>
+  <button data-t="set"><span class="ic">⚙️</span>Settings</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+const SVC='7b1c0001-5b4e-4c8f-9a1d-0a6b6f0b11e0',TELE='7b1c0002-5b4e-4c8f-9a1d-0a6b6f0b11e0',CFG='7b1c0003-5b4e-4c8f-9a1d-0a6b6f0b11e0';
+const $=id=>document.getElementById(id);
+const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let T={},C={mil:40,tank:10,price:100,low:40,tz:330,fuel:0};
+let fills=LS.get('fills',[]),trips=LS.get('trips',[]);
+let dev,chCfg,chTele,demoTimer=null,lastLow=false,wxLast=0,wxPos=null,apiWx=null;
+
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+const dec=v=>JSON.parse(new TextDecoder().decode(v));
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('section').forEach(s=>s.classList.toggle('active',s.id==='tab-'+b.dataset.t));
+  scrollTo(0,0)});
+
+/* ---------- connection status ---------- */
+function setConn(on,txt){$('pill').classList.toggle('on',on);$('pillTx').textContent=txt||(on?'Connected':'Offline');$('btnConn').textContent=on?'Disconnect':'Connect'}
+
+/* ---------- BLE ---------- */
+async function connect(){
+  if(demoTimer){stopDemo();return}
+  if(dev&&dev.gatt.connected){dev.gatt.disconnect();return}
+  if(!navigator.bluetooth){toast('Bluetooth not supported. Use Chrome on Android.');return}
+  try{
+    dev=await navigator.bluetooth.requestDevice({filters:[{services:[SVC]}]});
+    dev.addEventListener('gattserverdisconnected',onDisc);
+    await link();
+  }catch(e){if(e.name!=='NotFoundError')toast('Connect failed: '+e.message)}
+}
+async function link(){
+  setConn(false,'Connecting…');
+  const srv=await dev.gatt.connect();
+  const svc=await srv.getPrimaryService(SVC);
+  chTele=await svc.getCharacteristic(TELE);chCfg=await svc.getCharacteristic(CFG);
+  chTele.addEventListener('characteristicvaluechanged',e=>{try{onTele(dec(e.target.value))}catch(_){}});
+  chCfg.addEventListener('characteristicvaluechanged',e=>{try{onCfg(dec(e.target.value))}catch(_){}});
+  await chTele.startNotifications();await chCfg.startNotifications();
+  try{onCfg(dec(await chCfg.readValue()))}catch(_){}
+  setConn(true);toast('Connected to BikeGPS');
+}
+let retry=0;
+async function onDisc(){
+  setConn(false,'Reconnecting…');
+  if(retry++<6){setTimeout(async()=>{try{await link();retry=0}catch(e){onDisc()}},3000)}
+  else{setConn(false);retry=0}
+}
+async function send(obj){
+  if(demoTimer){applyDemo(obj);return true}
+  if(!chCfg||!dev||!dev.gatt.connected){toast('Not connected to the device');return false}
+  const data=new TextEncoder().encode(JSON.stringify(obj));
+  try{await chCfg.writeValueWithResponse(data)}catch(e){try{await chCfg.writeValue(data)}catch(e2){toast('Write failed');return false}}
+  return true;
+}
+$('btnConn').onclick=connect;
+
+/* ---------- render ---------- */
+function onCfg(c){
+  C={...C,...c};
+  $('tankL').textContent=C.tank;
+  for(const [id,k] of [['sMil','mil'],['sTank','tank'],['sPrice','price'],['sLow','low']])if(document.activeElement.id!==id)$(id).value=C[k];
+  if(document.activeElement.id!=='sTz')$('sTz').value=(C.tz/60);
+  if(document.activeElement.id!=='sFuel')$('sFuel').value=(+C.fuel).toFixed(2);
+  if(!$('fPrice').value)$('fPrice').value=C.price;
+  renderFills();
+}
+function onTele(t){
+  T=t;
+  $('spd').textContent=Math.round(t.v);
+  $('arc').setAttribute('stroke-dasharray',(Math.min(t.v,120)/120*251)+' 400');
+  $('arc').setAttribute('stroke',t.v>80?'#ff4d5e':t.v>50?'#ffb020':'#27d3a2');
+  $('trip').textContent=t.t.toFixed(1);$('odo').textContent=Math.round(t.o);
+  $('range').textContent=Math.round(t.r);$('cost').textContent=Math.round(t.c);
+  $('fuel').textContent=t.f.toFixed(2);
+  const pct=Math.max(0,Math.min(100,t.f/C.tank*100));
+  $('fuelPct').textContent=Math.round(pct);
+  const fb=$('fuelBar');fb.style.width=pct+'%';fb.style.background=t.lf?'var(--bad)':pct<30?'var(--warn)':'var(--acc)';
+  $('batP').textContent=t.p;$('batV').textContent=t.b.toFixed(1);$('batC').textContent=t.ch?'· charging':'';
+  const bb=$('batBar');bb.style.width=t.p+'%';bb.style.background=t.p<30?'var(--bad)':t.p<60?'var(--warn)':'var(--acc)';
+  $('clock').textContent=t.fx||t.s>=4?t.tm:'--:--';
+  $('sats').textContent=t.s;$('fx').textContent=t.fx?'fix OK':'no fix';
+  $('lowBanner').classList.toggle('show',!!t.lf);
+  $('lowTx').textContent='about '+Math.round(t.r)+' km left';
+  if(t.lf&&!lastLow)lowAlert(t);lastLow=!!t.lf;
+  if(t.fx&&t.la)wxPos={lat:t.la,lon:t.lo};
+  renderWx();
+  maybeWeather();
+}
+function lowAlert(t){
+  try{navigator.vibrate&&navigator.vibrate([300,150,300,150,300])}catch(_){}
+  try{if('Notification' in window&&Notification.permission==='granted')new Notification('Low fuel!',{body:'About '+Math.round(t.r)+' km left'})}catch(_){}
+}
+
+/* ---------- weather (Open-Meteo, no key) ---------- */
+const WC={0:['Clear','☀️'],1:['Mostly clear','🌤️'],2:['Part cloud','⛅'],3:['Cloudy','☁️'],45:['Fog','🌫️'],48:['Fog','🌫️'],51:['Drizzle','🌦️'],53:['Drizzle','🌦️'],55:['Drizzle','🌦️'],61:['Rain','🌧️'],63:['Rain','🌧️'],65:['Heavy rain','🌧️'],80:['Showers','🌦️'],81:['Showers','🌦️'],82:['Heavy rain','⛈️'],95:['Thunder','⛈️'],96:['Thunder','⛈️'],99:['Thunder','⛈️']};
+async function maybeWeather(){
+  if(Date.now()-wxLast<10*60*1000)return;
+  let p=wxPos;
+  if(!p&&navigator.geolocation){
+    p=await new Promise(r=>navigator.geolocation.getCurrentPosition(g=>r({lat:g.coords.latitude,lon:g.coords.longitude}),()=>r(null),{timeout:6000}));
+  }
+  if(!p)return;
+  wxLast=Date.now();
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,weather_code,wind_speed_10m,precipitation`);
+    const j=(await r.json()).current;
+    apiWx={t:Math.round(j.temperature_2m),w:WC[j.weather_code]||['—','🌡️'],wind:Math.round(j.wind_speed_10m),rain:j.precipitation};
+    renderWx();
+    if(!(T.te>-90))send({wx:apiWx.t+'C '+apiWx.w[0]}).catch(()=>{});   // OLED uses the BME sensor when fitted
+  }catch(e){wxLast=0}
+}
+// Live BME280 sensor on the bike (temp/humidity/pressure) + phone forecast data (condition/wind/rain)
+function renderWx(){
+  const hasS=T.te>-90;
+  if(hasS){
+    $('wxSrc').textContent='· bike sensor';
+    $('wx').textContent=T.te.toFixed(1)+'°C'+(T.hu>-90?' · '+Math.round(T.hu)+'% RH':'');
+    $('wx2').textContent='Pressure '+Math.round(T.pr)+' hPa'+(apiWx?' · '+apiWx.w[0]:'');
+    $('wx3').textContent=apiWx?'Wind '+apiWx.wind+' km/h · Rain '+apiWx.rain+' mm':'';
+    $('wxIc').textContent=apiWx?apiWx.w[1]:'🌡️';
+  }else if(apiWx){
+    $('wxSrc').textContent='· online';
+    $('wx').textContent=apiWx.t+'°C · '+apiWx.w[0];
+    $('wx2').textContent='Wind '+apiWx.wind+' km/h · Rain '+apiWx.rain+' mm';$('wx3').textContent='';
+    $('wxIc').textContent=apiWx.w[1];
+  }
+}
+
+/* ---------- fuel log ---------- */
+$('btnFill').onclick=async()=>{
+  const lit=parseFloat($('fLit').value),price=parseFloat($('fPrice').value)||C.price,full=$('fFull').checked;
+  if(!(lit>0)){toast('Enter litres added');return}
+  const ok=await send({fill:lit,full:full,price:price});
+  if(!ok&&!demoTimer)return;
+  fills.push({ts:Date.now(),lit,price,full,odo:T.o||0});LS.set('fills',fills);
+  if(price!==C.price)send({price});
+  $('fLit').value='';renderFills();toast('Fill-up saved');
+};
+function realMileage(){
+  // full-to-full method: litres of a full fill / km since previous full fill (partials in between are summed)
+  const res=[];let lastFullOdo=null,litres=0;
+  for(const f of fills){
+    litres+=f.lit;
+    if(f.full){
+      if(lastFullOdo!==null&&f.odo>lastFullOdo&&litres>0){res.push({id:f.ts,kmpl:(f.odo-lastFullOdo)/litres})}
+      lastFullOdo=f.odo;litres=0;
+    }
+  }
+  return res;
+}
+function renderFills(){
+  const rm=realMileage();const map={};rm.forEach(r=>map[r.id]=r.kmpl);
+  const L=$('fillList');
+  if(!fills.length)L.innerHTML='<div class="mut">No fill-ups yet.</div>';
+  else L.innerHTML=fills.slice().reverse().map(f=>`<div class="it"><div><b>${f.lit.toFixed(2)} L</b> @ ₹${(+f.price).toFixed(2)}${f.full?' · full':''}<div class="mut" style="font-size:12px">${new Date(f.ts).toLocaleString()}${map[f.ts]?` · <span class="acc">${map[f.ts].toFixed(1)} km/L</span>`:''}</div></div><div>₹${(f.lit*f.price).toFixed(0)}</div></div>`).join('');
+  $('sumFill').textContent=Math.round(fills.reduce((a,f)=>a+f.lit*f.price,0));
+  $('sumLit').textContent=fills.reduce((a,f)=>a+f.lit,0).toFixed(1);
+  if(rm.length){
+    const last=rm.slice(-3);const avg=last.reduce((a,r)=>a+r.kmpl,0)/last.length;
+    $('realMil').textContent=avg.toFixed(1);
+    $('realNote').textContent='Average of your last '+last.length+' full-to-full fill-up(s). Currently set to '+C.mil+' km/L.';
+    $('btnUseMil').style.display='block';$('btnUseMil').onclick=async()=>{if(await send({mil:+avg.toFixed(1)}))toast('Mileage updated')};
+  }else{$('realMil').textContent='—';$('btnUseMil').style.display='none'}
+}
+
+/* ---------- settings ---------- */
+$('btnSave').onclick=async()=>{
+  const o={mil:+$('sMil').value,tank:+$('sTank').value,price:+$('sPrice').value,low:+$('sLow').value,tz:Math.round(+$('sTz').value*60)};
+  if(!(o.mil>0&&o.tank>0)){toast('Check the values');return}
+  if(await send(o))toast('Saved to device');
+};
+$('btnFuel').onclick=async()=>{const f=parseFloat($('sFuel').value);if(f>=0&&await send({fuel:f}))toast('Fuel level set')};
+$('btnTrip').onclick=async()=>{
+  if(!T.t){toast('No trip data yet');return}
+  if(!confirm('End this trip and reset trip meter?'))return;
+  trips.push({ts:Date.now(),km:T.t,cost:T.c});LS.set('trips',trips);
+  if(await send({rtrip:true}))toast('Trip saved');renderTrips();
+};
+$('btnCost').onclick=async()=>{if(confirm('Reset fuel cost counter to ₹0?')&&await send({rcost:true}))toast('Cost reset')};
+function renderTrips(){
+  $('tripList').innerHTML=trips.length?trips.slice().reverse().slice(0,15).map(t=>`<div class="it"><div>${new Date(t.ts).toLocaleDateString()}</div><div><b>${t.km.toFixed(1)} km</b></div></div>`).join(''):'<div class="mut">No saved trips yet.</div>';
+}
+
+/* ---------- demo mode (no hardware) ---------- */
+let D;
+function startDemo(){
+  D={v:0,t:0,o:12345,f:6.2,c:0,tm:0};setConn(true,'Demo');
+  onCfg({mil:C.mil,tank:C.tank,price:C.price,low:C.low,tz:C.tz,fuel:D.f});
+  demoTimer=setInterval(()=>{
+    D.v=Math.max(0,Math.min(110,D.v+(Math.random()*14-5)));
+    const km=D.v/3600;D.t+=km;D.o+=km;
+    const l=km/C.mil;D.f=Math.max(0,D.f-l);D.c+=l*C.price;
+    const r=D.f*C.mil;
+    onTele({v:D.v,t:D.t,o:D.o,f:D.f,r:r,c:D.c,s:9,b:13.9,p:100,ch:1,fx:1,lf:r<C.low?1:0,la:15.8497,lo:74.4977,tm:new Date().toTimeString().slice(0,5),te:29.4,hu:58,pr:1008});
+  },1000);
+  $('btnConn').textContent='Stop demo';
+}
+function stopDemo(){clearInterval(demoTimer);demoTimer=null;setConn(false);T={};}
+function applyDemo(o){
+  if(o.mil)C.mil=o.mil;if(o.tank)C.tank=o.tank;if(o.price)C.price=o.price;if(o.low)C.low=o.low;if(o.tz!=null)C.tz=o.tz;
+  if(o.fuel!=null)D.f=o.fuel;
+  if(o.fill){D.f=o.full?C.tank:Math.min(C.tank,D.f+o.fill)}
+  if(o.rtrip)D.t=0;if(o.rcost)D.c=0;
+  onCfg({...C,fuel:D.f});
+}
+$('btnDemo').onclick=()=>{if(demoTimer)stopDemo();else{startDemo();document.querySelector('nav button').click()}};
+
+/* ---------- init ---------- */
+renderFills();renderTrips();setConn(false);
+if('Notification' in window&&Notification.permission==='default')$('btnConn').addEventListener('click',()=>Notification.requestPermission(),{once:true});
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
